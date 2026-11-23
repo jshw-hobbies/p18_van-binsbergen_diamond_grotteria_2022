@@ -148,3 +148,8 @@ convenience yield can actually be earned after trading costs, using executable
 
 Joe, Leila, Adam and Lamiya. On GitHub: jshw-hobbies, lhuang28, adamsun09 and
 lbadalova-un. Each member owns one data domain, from pull to tables (to be assigned).
+
+The team's working rules, which Claude Code sessions in this repo also follow, are in
+[`CLAUDE.md`](https://github.com/jshw-hobbies/p18_van-binsbergen_diamond_grotteria_2022/blob/main/CLAUDE.md).
+Every change goes through a pull request with the checklist in
+[`.github/PULL_REQUEST_TEMPLATE.md`](https://github.com/jshw-hobbies/p18_van-binsbergen_diamond_grotteria_2022/blob/main/.github/PULL_REQUEST_TEMPLATE.md).
