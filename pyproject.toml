@@ -1,0 +1,55 @@
+[project]
+name = "p18_van_binsbergen_diamond_grotteria_2022"
+version = "0.1.0"
+description = "Replication of van Binsbergen, Diamond and Grotteria (2022), Risk-free interest rates"
+authors = [
+    { name = "Joe, Leila, Adam, Lamiya", email = "wongsinghymn@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "colorama",
+    "doit==0.36.0",
+    "fabric==3.2.2",
+    "holidays",
+    "ipython",
+    "matplotlib==3.9.2",
+    "numpy==1.26.4",
+    "openpyxl==3.1.5",
+    "pandas-datareader==0.10.0",
+    "pandas-market-calendars==4.4.1",
+    "pandas==2.2.3",
+    "paramiko==3.5.0",
+    "plotly==5.24.1",
+    "polars>=1.33,<2",
+    "pyarrow<26",
+    "pytest==8.3.3",
+    "python-decouple==3.8",
+    "python-dotenv==1.0.1",
+    "pyxlsb==1.0.10",
+    "requests==2.32.3",
+    "ruff",
+    "black==24.8.0",
+    "scikit-learn==1.5.2",
+    "scipy==1.12.0",
+    "seaborn==0.13.2",
+    "statsmodels==0.14.4",
+    "xlrd==2.0.1",
+    "xlwings==0.33.3",
+    "zstandard==0.23.0",
+    "linearmodels==6.1",
+    "jupyter",
+    "jupyterlab",
+    "jupytext",
+    "notebook",
+    "chartbook>=0.4.0",
+    "wrds>=3.4.0",
+]
+
+[tool.pytest.ini_options]
+filterwarnings = ["ignore::Warning"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

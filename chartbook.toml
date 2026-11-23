@@ -1,0 +1,33 @@
+[project]
+name = "finm32800_p18 Risk-Free Interest Rates"
+description = "Replication of van Binsbergen, Diamond and Grotteria (2022), Risk-free interest rates"
+maintainer = "Joe, Leila, Adam, Lamiya"
+contributors = ["Joe, Leila, Adam, Lamiya"]
+os_compatibility = ["Windows", "Linux", "macOS"]
+requires_chartbook = ">=0.4.0"
+
+[scripts]
+build = "doit"
+
+[notebooks]
+
+
+[notebooks.01_example_notebook_interactive]
+name = "Example Notebook Interactive"
+description = "Example notebook for demonstrating how to construct a Chartbook notebook."
+path = "_output/01_example_notebook_interactive.ipynb"
+
+
+[notebooks.02_example_with_dependencies]
+name = "Example Notebook with Dependencies"
+description = "Example notebook demonstrating dependencies on data pulls."
+path = "_output/02_example_with_dependencies.ipynb"
+
+
+
+
+[dataframes]
+
+
+[charts]
+
