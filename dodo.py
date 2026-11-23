@@ -15,9 +15,34 @@ import shutil
 from os import environ
 from pathlib import Path
 
-from settings import config
+from doit.tools import config_changed
 
-DOIT_CONFIG = {"backend": "sqlite3", "dep_file": "./.doit-db.sqlite"}
+from settings import (
+    DATABENTO_DATASET,
+    DJX_SECID,
+    END_DATE,
+    FOMC_WINDOW_MINUTES,
+    SPX_SECID,
+    START_DATE,
+    TENORS_M,
+    config,
+)
+
+## `doit` with no arguments runs only default_tasks. Every P18 task is declared
+## below (see `doit list`), but a task joins this list only in the PR that
+## implements its module, so `doit` stays green while modules are stubs.
+## Run any task by name: `doit pull_gsw`.
+DOIT_CONFIG = {
+    "backend": "sqlite3",
+    "dep_file": "./.doit-db.sqlite",
+    "default_tasks": [
+        "config",
+        "run_notebooks",
+        "compile_latex_docs",
+        "build_chartbook_site",
+        "run_pytest",
+    ],
+}
 
 
 BASE_DIR = config("BASE_DIR")
@@ -84,7 +109,193 @@ def task_config():
     }
 
 
-## The P18 pull, clean and calc tasks go here (step 6.3: dodo.py skeleton).
+##################################
+## P18 pipeline: pull -> clean -> calc -> tables
+##################################
+## Each task declares its file_dep and targets, so doit reruns exactly what
+## changed. Pulls depend on the parameters they use through config_changed, not
+## on settings.py itself: editing a comment in settings.py must not re-pull years
+## of OptionMetrics (and send Duo pushes). Raw pulls set "clean": [] so that
+## `doit clean` never deletes them.
+
+INDEXES = {"SPX": SPX_SECID, "DJX": DJX_SECID}
+YEARS = range(int(START_DATE[:4]), int(END_DATE[:4]) + 1)
+SAMPLE = {"START_DATE": START_DATE, "END_DATE": END_DATE}
+
+OPPRCD = [DATA_DIR / f"opprcd_{i}_{y}.parquet" for i in INDEXES for y in YEARS]
+ZEROCD = DATA_DIR / "optionm_zerocd.parquet"
+GSW = DATA_DIR / "gsw_yield_curve.parquet"
+FRED = DATA_DIR / "fred.parquet"
+FUTURES_DAILY = DATA_DIR / "futures_daily.parquet"
+ZQ_EVENT_TRADES = DATA_DIR / "zq_event_trades.parquet"
+CRSP_TREASURY = [DATA_DIR / "crsp_tfz_dly.parquet", DATA_DIR / "crsp_tfz_iss.parquet"]
+FOMC_CALENDAR = MANUAL_DATA_DIR / "fomc_announcements.csv"
+
+CLEAN_OPTION_PAIRS = DATA_DIR / "clean_option_pairs.parquet"
+FILTER_FUNNEL = DATA_DIR / "option_filter_funnel.parquet"
+BOX_RATES_BY_EXPIRY = DATA_DIR / "box_rates_by_expiry.parquet"
+BOX_RATES_FIXED_TENOR = DATA_DIR / "box_rates_fixed_tenor.parquet"
+BIDASK_DAILY = DATA_DIR / "bidask_daily.parquet"
+BENCHMARK_RATES = DATA_DIR / "benchmark_rates.parquet"
+FOMC_SURPRISES = DATA_DIR / "fomc_surprises.parquet"
+TREASURY_SPREADS = DATA_DIR / "treasury_spreads.parquet"
+
+TABLES = [OUTPUT_DIR / "tables" / f"table_{n}.tex" for n in (1, 2, 3, 4, 7, 9, 11)]
+FUNNEL_TABLE = OUTPUT_DIR / "tables" / "filter_funnel.tex"
+
+
+def task_pull_optionmetrics():
+    """Pull SPX and DJX option quotes from OptionMetrics (WRDS), year by year"""
+    return {
+        "actions": ["python ./src/pull_optionmetrics.py"],
+        "file_dep": ["./src/pull_optionmetrics.py"],
+        "targets": OPPRCD,
+        "uptodate": [config_changed({**SAMPLE, "INDEXES": INDEXES})],
+        "clean": [],
+    }
+
+
+def task_pull_zerocd():
+    """Pull the OptionMetrics zero-coupon curve (WRDS)"""
+    return {
+        "actions": ["python ./src/pull_zerocd.py"],
+        "file_dep": ["./src/pull_zerocd.py"],
+        "targets": [ZEROCD],
+        "uptodate": [config_changed(SAMPLE)],
+        "clean": [],
+    }
+
+
+def task_pull_gsw():
+    """Download the GSW Treasury yield curve from the Fed"""
+    return {
+        "actions": ["python ./src/pull_gsw.py"],
+        "file_dep": ["./src/pull_gsw.py"],
+        "targets": [GSW],
+        "uptodate": [config_changed(SAMPLE)],
+        "clean": [],
+    }
+
+
+def task_pull_fred():
+    """Pull benchmark rate series from FRED"""
+    return {
+        "actions": ["python ./src/pull_fred.py"],
+        "file_dep": ["./src/pull_fred.py"],
+        "targets": [FRED],
+        "uptodate": [config_changed(SAMPLE)],
+        "clean": [],
+    }
+
+
+def task_pull_databento():
+    """Pull CME futures daily bars, and ZQ trades around FOMC announcements"""
+    return {
+        "actions": ["python ./src/pull_databento.py"],
+        "file_dep": ["./src/pull_databento.py", FOMC_CALENDAR],
+        "targets": [FUTURES_DAILY, ZQ_EVENT_TRADES],
+        "uptodate": [
+            config_changed(
+                {
+                    **SAMPLE,
+                    "DATABENTO_DATASET": DATABENTO_DATASET,
+                    "FOMC_WINDOW_MINUTES": FOMC_WINDOW_MINUTES,
+                }
+            )
+        ],
+        "clean": [],
+    }
+
+
+def task_pull_crsp_treasury():
+    """Pull CRSP Treasury daily quotes and issue information (WRDS)"""
+    return {
+        "actions": ["python ./src/pull_crsp_treasury.py"],
+        "file_dep": ["./src/pull_crsp_treasury.py"],
+        "targets": CRSP_TREASURY,
+        "uptodate": [config_changed(SAMPLE)],
+        "clean": [],
+    }
+
+
+def task_clean_options():
+    """Filter the raw option quotes into matched call-put pairs"""
+    return {
+        "actions": ["python ./src/clean_options.py"],
+        "file_dep": ["./src/clean_options.py", *OPPRCD],
+        "targets": [CLEAN_OPTION_PAIRS, FILTER_FUNNEL],
+        "clean": True,
+    }
+
+
+def task_calc_box_rates():
+    """Estimate box rates by expiry, and interpolate them to fixed tenors"""
+    return {
+        "actions": ["python ./src/calc_box_rates.py"],
+        "file_dep": ["./src/calc_box_rates.py", CLEAN_OPTION_PAIRS],
+        "targets": [BOX_RATES_BY_EXPIRY, BOX_RATES_FIXED_TENOR],
+        "uptodate": [config_changed({"TENORS_M": TENORS_M})],
+        "clean": True,
+    }
+
+
+def task_calc_bidask():
+    """Daily median relative bid-ask spreads, by index and option type"""
+    return {
+        "actions": ["python ./src/calc_bidask.py"],
+        "file_dep": ["./src/calc_bidask.py", CLEAN_OPTION_PAIRS],
+        "targets": [BIDASK_DAILY],
+        "clean": True,
+    }
+
+
+def task_calc_benchmarks():
+    """Benchmark rates on the box-rate tenors, in common units"""
+    return {
+        "actions": ["python ./src/calc_benchmarks.py"],
+        "file_dep": ["./src/calc_benchmarks.py", GSW, FRED, ZEROCD, FUTURES_DAILY],
+        "targets": [BENCHMARK_RATES],
+        "uptodate": [config_changed({"TENORS_M": TENORS_M})],
+        "clean": True,
+    }
+
+
+def task_calc_fomc_surprises():
+    """Fed funds futures surprises for each FOMC announcement"""
+    return {
+        "actions": ["python ./src/calc_fomc_surprises.py"],
+        "file_dep": ["./src/calc_fomc_surprises.py", FOMC_CALENDAR, ZQ_EVENT_TRADES],
+        "targets": [FOMC_SURPRISES],
+        "clean": True,
+    }
+
+
+def task_calc_treasury_arbitrage():
+    """Treasury market spreads for Table 11 (CRSP and GSW)"""
+    return {
+        "actions": ["python ./src/calc_treasury_arbitrage.py"],
+        "file_dep": ["./src/calc_treasury_arbitrage.py", *CRSP_TREASURY, GSW],
+        "targets": [TREASURY_SPREADS],
+        "clean": True,
+    }
+
+
+def task_calc_tables():
+    """Write the report's tables as LaTeX files"""
+    return {
+        "actions": ["python ./src/calc_tables.py"],
+        "file_dep": [
+            "./src/calc_tables.py",
+            BOX_RATES_FIXED_TENOR,
+            BENCHMARK_RATES,
+            BIDASK_DAILY,
+            FOMC_SURPRISES,
+            TREASURY_SPREADS,
+            FILTER_FUNNEL,
+        ],
+        "targets": [*TABLES, FUNNEL_TABLE],
+        "clean": True,
+    }
 
 
 ## Notebooks to run, keyed by file name, each with "path", "file_dep" and
