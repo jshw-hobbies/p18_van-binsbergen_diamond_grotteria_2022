@@ -198,10 +198,10 @@ def if_relative_make_abs(path):
     -------
     ```
     >>> if_relative_make_abs(Path('_data'))
-    WindowsPath('C:/Users/jdoe/GitRepositories/cookiecutter_chartbook/_data')
+    WindowsPath('C:/Users/jdoe/repos/p18/_data')
 
-    >>> if_relative_make_abs(Path("C:/Users/jdoe/GitRepositories/cookiecutter_chartbook/_output"))
-    WindowsPath('C:/Users/jdoe/GitRepositories/cookiecutter_chartbook/_output')
+    >>> if_relative_make_abs(Path("C:/Users/jdoe/repos/p18/_output"))
+    WindowsPath('C:/Users/jdoe/repos/p18/_output')
     ```
     """
     path = Path(path)
@@ -228,8 +228,8 @@ def config(
     cli_vars=cli_vars,
     convert_dir_vars_to_abs_path=True,
 ):
-    """Config defines a variable that can be used in the project. The definition of variables follows
-    an order of precedence:
+    """Config defines a variable that can be used in the project. The definition of
+    variables follows an order of precedence:
     1. Command line arguments
     2. Environment variables
     3. Settings.py file

@@ -27,7 +27,8 @@ uv sync              # build .venv from uv.lock (Python 3.12, pinned in .python-
 uv run doit          # run the pipeline; only tasks whose inputs changed rerun
 uv run doit list     # list the tasks
 uv run doit -v 2     # show each task's output live (use this when a task seems stuck)
-uv run pytest        # run the tests
+uv run pytest        # run the tests (skips the WRDS ones; `-m wrds` runs only those)
+uv run ruff check .  # lint, as CI does; `--fix` repairs import order and unused imports
 uv add <package>     # add a dependency (updates pyproject.toml and uv.lock); never pip install
 ```
 
@@ -86,8 +87,10 @@ uv add <package>     # add a dependency (updates pyproject.toml and uv.lock); ne
   quoted as discount yields, and GSW yields are in percent.
 - **Time zones.** Databento timestamps are UTC, and FOMC times are US Eastern. Convert with
   `America/New_York`, and test across a daylight-saving change.
-- **Tests.** Mark tests that need WRDS or other credentials with `@pytest.mark.wrds`; CI runs only the
-  others. Everything else runs on synthetic fixtures.
+- **Tests.** Mark tests that need WRDS or other credentials with `@pytest.mark.wrds`. A plain
+  `uv run pytest` skips them (`addopts` in `pyproject.toml`), and so do CI and `doit`. Run them on purpose
+  with `uv run pytest -m wrds`, which sends a Duo push, so ask the human first. Everything else runs on
+  synthetic fixtures. A misspelled marker is an error (`--strict-markers`).
 - **Report.** Every number in the LaTeX report comes from a generated `.tex` file through `\input`. No
   hand-typed statistics.
 

@@ -83,7 +83,8 @@ uv run doit
 ```
 uv run doit list         # list every task in the pipeline
 uv run doit <task>       # run one task, e.g. uv run doit pull_gsw
-uv run pytest            # run the tests
+uv run pytest            # run the tests that need no credentials
+uv run pytest -m wrds    # run the tests that connect to WRDS (one Duo push each)
 uv run ruff check .      # lint
 ```
 

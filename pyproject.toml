@@ -47,9 +47,21 @@ dependencies = [
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::Warning"]
+markers = [
+    "wrds: needs WRDS or other credentials. Excluded by default; run with `uv run pytest -m wrds`.",
+]
+# -m "not wrds": a plain `pytest` (in CI, in doit, in any Claude session) never connects
+# to WRDS, where every connection sends a Duo push. A `-m` given on the command line
+# replaces this one. --strict-markers turns a misspelled marker into an error, so a
+# typo can't let a WRDS test run.
+addopts = '--strict-markers -m "not wrds"'
 
 [tool.ruff]
 line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# dodo.py's actions are shell commands, which read best on one line.
+"dodo.py" = ["E501"]
