@@ -25,7 +25,6 @@ DATA_DIR = config("DATA_DIR")
 MANUAL_DATA_DIR = config("MANUAL_DATA_DIR")
 OUTPUT_DIR = config("OUTPUT_DIR")
 OS_TYPE = config("OS_TYPE")
-USER = config("USER")
 
 ## Helpers for handling Jupyter Notebook tasks
 environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
@@ -212,14 +211,14 @@ def task_compile_latex_docs():
     return {
         "actions": [
             # My custom LaTeX templates
-            "latexmk -xelatex -halt-on-error -cd ./reports/report_example.tex",  # Compile
+            "latexmk -xelatex -interaction=nonstopmode -halt-on-error -cd ./reports/report_example.tex",  # Compile
             "latexmk -xelatex -halt-on-error -c -cd ./reports/report_example.tex",  # Clean
-            "latexmk -xelatex -halt-on-error -cd ./reports/slides_example.tex",  # Compile
+            "latexmk -xelatex -interaction=nonstopmode -halt-on-error -cd ./reports/slides_example.tex",  # Compile
             "latexmk -xelatex -halt-on-error -c -cd ./reports/slides_example.tex",  # Clean
             # Simple templates based on small adjustments to Overleaf templates
-            "latexmk -xelatex -halt-on-error -cd ./reports/report_simple_example.tex",  # Compile
+            "latexmk -xelatex -interaction=nonstopmode -halt-on-error -cd ./reports/report_simple_example.tex",  # Compile
             "latexmk -xelatex -halt-on-error -c -cd ./reports/report_simple_example.tex",  # Clean
-            "latexmk -xelatex -halt-on-error -cd ./reports/slides_simple_example.tex",  # Compile
+            "latexmk -xelatex -interaction=nonstopmode -halt-on-error -cd ./reports/slides_simple_example.tex",  # Compile
             "latexmk -xelatex -halt-on-error -c -cd ./reports/slides_simple_example.tex",  # Clean
         ],
         "targets": targets,
