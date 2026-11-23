@@ -1,165 +1,150 @@
-finm32800_p18 Risk-Free Interest Rates
-======================================
+# Risk-Free Interest Rates: a replication of van Binsbergen, Diamond and Grotteria (2022)
 
-## About this project
+FINM 32800 final project P18, University of Chicago.
 
-Replication of van Binsbergen, Diamond and Grotteria (2022), Risk-free interest rates
+> **Status (November 2026): setting up.** The pipeline's modules in `src/` are
+> documented stubs that the team is filling in. For now, `doit` runs the tests and
+> builds the template report and site. Each module's task joins `doit` once the
+> module is implemented.
 
-## Quick Start
+## Summary
 
-The quickest way to run code in this repo is to use the following steps.
+A box spread combines four SPX (or DJX) options so that it pays a fixed amount at
+expiry, whatever the index does. Its price is therefore a risk-free discount factor,
+and the rate it implies carries no convenience yield. The paper estimates these box
+rates and compares them with Treasury, OIS, LIBOR and repo rates. The gap between the
+box rate and the Treasury yield measures the convenience yield on Treasuries: about
+40 basis points in the paper.
 
-You must have TexLive (or another LaTeX distribution) installed on your computer and available in your path.
-You can do this by downloading and installing it from here ([windows](https://tug.org/texlive/windows.html#install)
-and [mac](https://tug.org/mactex/mactex-download.html) installers).
+We replicate the paper's main tables with end-of-day OptionMetrics quotes, extend them
+to the latest date available, and add one extension.
 
+## The paper
 
-This project uses [uv](https://docs.astral.sh/uv/) for dependency management. First, install uv if you haven't already:
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+Jules H. van Binsbergen, William F. Diamond and Marco Grotteria, "Risk-free interest
+rates", *Journal of Financial Economics* 143 (2022), 1–29.
+
+We work from the working-paper version, [NBER Working Paper 26138](https://www.nber.org/papers/w26138)
+(August 2019). Table numbers here follow it; the JFE version numbers its tables
+differently.
+
+## What we replicate
+
+The replication sample runs from 2004-01-01 to 2018-12-31. The update repeats the
+same exhibits through 2025-08-29, the last date of OptionMetrics on WRDS as of
+November 2026.
+
+| Exhibit (WP numbering) | Content |
+|---|---|
+| Table 1 | SPX box rates at 6, 12 and 18 months, against LIBOR, Treasury (GSW) and OIS rates |
+| Table 2 | 3-month rates: box, Treasury, OIS and GC repo |
+| Table 3 | DJX box rates against Treasury yields |
+| Table 4 | DJX minus SPX box rates: mean, standard deviation and AR(1) |
+| Table 7 | The DJX minus SPX spread regressed on log bid-ask spreads |
+| Table 9 | Responses of box and Treasury rates to FOMC policy surprises |
+| Table 11 | Treasury market spreads: 6-month, on-the-run, and notes vs bonds |
+
+## Setup and running
+
+### Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) and git. uv installs Python 3.12 (pinned in
+  `.python-version`) and the exact package versions in `uv.lock`.
+- A LaTeX distribution with `xelatex` and `latexmk` (TeX Live, MiKTeX or TinyTeX).
+  TinyTeX needs these extra packages:
+
+  ```
+  tlmgr install preprint accents adjustbox collectbox appendix appendixnumberbeamer bbm bbm-macros cancel caption ccicons jknapltx bbold bbold-type1 rsfs mathtools pbox pdflscape pgfplots placeins setspace silence siunitx soul tabulary threeparttable tocbibind todonotes xargs xkeyval beamer translator beamertheme-metropolis pgfopts
+  ```
+
+- For the data pulls:
+  - a **WRDS** account with OptionMetrics and CRSP. Set up a `pgpass` file so that
+    the pulls run without a password prompt. Each connection sends a Duo push;
+  - a **Databento** API key (the course subscription). The pulls use only free CME
+    data and check the cost before every request.
+
+### Run
+
 ```
-Then sync the environment:
-```bash
+git clone https://github.com/jshw-hobbies/p18_van-binsbergen_diamond_grotteria_2022.git
+cd p18_van-binsbergen_diamond_grotteria_2022
 uv sync
+cp .env.example .env        # on Windows: copy .env.example .env
 ```
 
-Finally, run the project tasks:
-```bash
-doit
+Fill in `WRDS_USERNAME` and `DATABENTO_API_KEY` in `.env`, then run:
+
 ```
-And that's it!
-
-
-### Other commands
-
-#### Unit Tests and Doc Tests
-
-You can run the unit test, including doctests, with the following command:
-```
-pytest --doctest-modules
+uv run doit
 ```
 
-You can build the documentation with:
-```
-rm ./src/.pytest_cache/README.md
-jupyter-book build -W ./
-```
-Use `del` instead of rm on Windows
+`doit` reruns only the tasks whose inputs changed. Other commands:
 
-
-#### Setting Environment Variables
-
-You can [export your environment variables](https://stackoverflow.com/questions/43267413/how-to-set-environment-variables-from-env-file)
-from your `.env` files like so, if you wish. This can be done easily in a Linux or Mac terminal with the following command:
-```bash
-set -a  # automatically export all variables
-source .env
-set +a
 ```
-On Windows (PowerShell):
-```powershell
-Get-Content .env | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process') } }
+uv run doit list         # list every task in the pipeline
+uv run doit <task>       # run one task, e.g. uv run doit pull_gsw
+uv run pytest            # run the tests
+uv run ruff check .      # lint
 ```
 
-### Formatting
+The sample dates, security IDs and tenors are committed constants in
+`src/settings.py`, not `.env` settings, so the same commit gives the same results on
+every machine. `.env` holds only credentials and, optionally, `DATA_DIR`.
 
-This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting Python code.
+### Outputs
 
-```bash
-# Auto-fix linting issues (e.g., unused imports, undefined names)
-ruff check . --fix
+- `_data/`: pulled and cleaned data (gitignored).
+- `_output/tables/`: the tables, as LaTeX files.
+- `reports/`: the LaTeX report and its PDF.
+- `docs/`: the ChartBook site.
 
-# Format code (consistent style, spacing, line length)
-ruff format .
+## Data sources
 
-# Sort imports, then fix linting issues, then format
-ruff format . && ruff check --select I --fix . && ruff check --fix .
-```
+| Source | Data | Access | Used for |
+|---|---|---|---|
+| OptionMetrics IvyDB US (WRDS) | SPX (secid 108105) and DJX (secid 102456) option quotes; the zero-coupon curve `zerocd` | WRDS | Box rates; LIBOR-implied benchmark |
+| Federal Reserve: Gürkaynak, Sack and Wright (2007) | Treasury zero-coupon yields and Svensson parameters | Free | Government benchmark; model yields for Table 11 |
+| FRED | SOFR, BGCR, TGCR, T-bill and constant-maturity Treasury yields | Free | Benchmarks, especially after 2018 |
+| CRSP Treasury (WRDS) | Daily Treasury quotes and issue information | WRDS | Table 11 |
+| Databento, CME Globex | Fed funds (`ZQ`), SOFR (`SR1`, `SR3`) and Eurodollar (`GE`) futures; `ZQ` trades around FOMC announcements | Course key, free | Futures-implied rates; FOMC surprises from 2010 |
+| Bloomberg (manual export) | OIS; GC repo before 2018; fed funds futures before 2010 | Lab terminal | Benchmarks and surprises where no free source exists |
+| `data_manual/fomc_announcements.csv` | FOMC announcement dates and times | Hand-built | Table 9 |
 
-- `ruff check --fix` applies safe auto-fixes for linting violations
-- `ruff format` formats code similar to Black
-- `--select I` targets only import sorting rules (isort-compatible)
+Raw Bloomberg data is copyrighted and never goes into git. The exports go to
+`DATA_DIR/manual/`, and the pipeline treats them as optional.
 
-### General Directory Structure
+## Deviations from the paper
 
- - The `assets` folder is used for things like hand-drawn figures or other
-   pictures that were not generated from code. These things cannot be easily
-   recreated if they are deleted.
+- **End-of-day quotes instead of minute-level ones.** The paper estimates a box rate
+  every minute from CBOE quotes and takes the daily median. We use OptionMetrics'
+  end-of-day quotes, so our rates are noisier day to day.
+- **CRSP instead of GovPX** for the Treasury spreads in Table 11. STRIPS are not in
+  CRSP.
+- **Table 9 is a daily adaptation** (pending the professor's approval). Our box rates
+  are end-of-day, so their responses are measured over days, not minutes. The surprises use the paper's intraday window
+  from June 2010 (Databento) and daily data before that (Bloomberg).
+- **Futures-implied stand-ins.** From 2010, rates implied by fed funds futures stand
+  in for OIS where Bloomberg data is missing. Futures are not swaps: they settle on a
+  monthly average rate and carry a small convexity bias.
+- **The update uses SOFR**, because LIBOR ended in 2023.
 
- - The `_output` folder, on the other hand, contains dataframes and figures that are
-   generated from code. The entire folder should be able to be deleted, because
-   the code can be run again, which would again generate all of the contents.
+## Extension
 
- - The `data_manual` is for data that cannot be easily recreated. This data
-   should be version controlled. Anything in the `_data` folder or in
-   the `_output` folder should be able to be recreated by running the code
-   and can safely be deleted.
+To be agreed with the professor. The leading candidate asks whether the box rate's
+convenience yield can actually be earned after trading costs, using executable
+(bid/ask) box rates, Cboe's box spread quotes and the BOXX ETF.
 
- - I'm using the `doit` Python module as a task runner. It works like `make` and
-   the associated `Makefile`s. To rerun the code, install `doit`
-   (https://pydoit.org/) and execute the command `doit` from the `src`
-   directory. Note that doit is very flexible and can be used to run code
-   commands from the command prompt, thus making it suitable for projects that
-   use scripts written in multiple different programming languages.
+## Repository layout
 
- - I'm using the `.env` file as a container for absolute paths that are private
-   to each collaborator in the project. You can also use it for private
-   credentials, if needed. It should not be tracked in Git.
+- `src/`: the code. `settings.py` holds the paths and committed constants. The
+  modules follow the stages `pull_*` (raw data), `clean_*` (tidy data), `calc_*`
+  (analysis) and `calc_tables` (LaTeX tables).
+- `dodo.py`: the pipeline. Every task declares its inputs and outputs.
+- `data_manual/`: small hand-made inputs that are committed, such as the FOMC calendar.
+- `reports/`: the LaTeX report.
+- `docs_src/` and `chartbook.toml`: the ChartBook site.
 
-### Data and Output Storage
+## Team
 
-I'll often use a separate folder for storing data. Any data in the data folder
-can be deleted and recreated by rerunning the PyDoit command (the pulls are in
-the dodo.py file). Any data that cannot be automatically recreated should be
-stored in the "data_manual" folder. Because of the risk of manually-created data
-getting changed or lost, I prefer to keep it under version control if I can.
-Thus, data in the "_data" folder is excluded from Git (see the .gitignore file),
-while the "data_manual" folder is tracked by Git.
-
-Output is stored in the "_output" directory. This includes dataframes, charts, and
-rendered notebooks. When the output is small enough, I'll keep this under
-version control. I like this because I can keep track of how dataframes change as my
-analysis progresses, for example.
-
-Of course, the _data directory and _output directory can be kept elsewhere on the
-machine. To make this easy, I always include the ability to customize these
-locations by defining the path to these directories in environment variables,
-which I intend to be defined in the `.env` file, though they can also simply be
-defined on the command line or elsewhere. The `settings.py` is responsible for
-loading these environment variables and doing some preprocessing on them.
-The `settings.py` file is the entry point for all other scripts to these
-definitions. That is, all code that references these variables and others are
-loaded by importing `config`.
-
-### Naming Conventions
-
- - **`pull_` vs `load_`**: Files or functions that pull data from an external
- data source are prepended with "pull_", as in "pull_fred.py". Functions that
- load data that has been cached in the "_data" folder are prepended with "load_".
- For example, inside of the `pull_CRSP_Compustat.py` file there is both a
- `pull_compustat` function and a `load_compustat` function. The first pulls from
- the web, whereas the other loads cached data from the "_data" directory.
-
-
-### Dependencies and Virtual Environments
-
-#### Working with `uv`
-
-This project uses [uv](https://docs.astral.sh/uv/) for fast, reliable Python package management. Dependencies are defined in `pyproject.toml` and locked in `uv.lock`.
-
-To sync your environment with the lockfile:
-```bash
-uv sync
-```
-
-To add a new dependency:
-```bash
-uv add <package-name>
-```
-
-To update all dependencies:
-```bash
-uv lock --upgrade
-uv sync
-```
-
+Joe, Leila, Adam and Lamiya. On GitHub: jshw-hobbies, lhuang28, adamsun09 and
+lbadalova-un. Each member owns one data domain, from pull to tables (to be assigned).
