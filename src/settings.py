@@ -42,7 +42,6 @@ and compare to
 """
 
 import sys
-from datetime import datetime
 from pathlib import Path
 from platform import system
 
@@ -147,9 +146,47 @@ if "STATA_EXE" in cli_vars:
 else:
     defaults["STATA_EXE"] = get_stata_exe()
 
-## Dates
-defaults["START_DATE"] = datetime.strptime("1913-01-01", "%Y-%m-%d")
-defaults["END_DATE"] = datetime.strptime("2024-12-31", "%Y-%m-%d")
+########################################################
+## Committed constants
+########################################################
+## These change what the pipeline computes, so they live in this committed file
+## and never in .env: two people who build the same commit must get the same
+## bytes. `.env` holds only secrets and machine-specific paths (WRDS_USERNAME,
+## DATABENTO_API_KEY, DATA_DIR). Import the constants directly, e.g.
+## `from settings import END_DATE`. `config()` refuses them, and importing this
+## module raises if .env, the environment or the command line tries to set one.
+
+## Sample period: ISO dates, inclusive.
+START_DATE = "2004-01-01"  # start of the paper's sample
+REPLICATION_END = "2018-12-31"  # end of the paper's sample (NBER WP 26138)
+## END_DATE is the last date of OptionMetrics on WRDS: optionm_all.opprcd2025
+## ends on 2025-08-29 for both SPX and DJX (checked 2026-11-23; there is no
+## opprcd2026 yet). Moving it takes a commit, and it reruns every pull.
+END_DATE = "2025-08-29"
+
+## OptionMetrics security IDs (optionm_all.securd, cross-checked in secnmd).
+SPX_SECID = 108105  # S&P 500 index
+DJX_SECID = 102456  # Dow Jones Industrial Average index (1/100 of the DJIA)
+
+## Fixed maturities of the box-rate panels, in months.
+TENORS_M = (3, 6, 12, 18, 30)
+
+## Databento: CME Globex, for the fed funds, SOFR and Treasury futures.
+DATABENTO_DATASET = "GLBX.MDP3"
+## Half-width of the intraday window pulled around each FOMC announcement:
+## from 120 minutes before it to 120 minutes after.
+FOMC_WINDOW_MINUTES = 120
+
+COMMITTED_CONSTANTS = (
+    "START_DATE",
+    "REPLICATION_END",
+    "END_DATE",
+    "SPX_SECID",
+    "DJX_SECID",
+    "TENORS_M",
+    "DATABENTO_DATASET",
+    "FOMC_WINDOW_MINUTES",
+)
 
 
 ## File paths
@@ -198,7 +235,16 @@ def config(
     3. Settings.py file
     4. Defaults defined in-line in the local file
     5. Error
+
+    The committed constants (COMMITTED_CONSTANTS) are not settings and are
+    refused here: import them from this module instead.
     """
+    if var_name in COMMITTED_CONSTANTS:
+        raise ValueError(
+            f"{var_name} is a committed constant in settings.py, not a setting: "
+            f"use `from settings import {var_name}`. It is never read from .env, "
+            "the environment or the command line."
+        )
 
     # 1. Command line arguments (highest priority)
     if var_name in cli_vars and cli_vars[var_name] is not None:
@@ -242,6 +288,29 @@ def config(
             f"  3. .env file: {var_name}=value\n"
             f"Original error: {e}"
         ) from e
+
+
+def check_no_overrides(names=COMMITTED_CONSTANTS, cli_vars=cli_vars):
+    """Raise if .env, the environment or the command line sets a committed constant.
+
+    Without this check, a line such as END_DATE=2026-12-31 in someone's .env
+    would be silently ignored, and they would think the pipeline used it.
+    """
+    sentinel = object()
+    found = [
+        name
+        for name in names
+        if name in cli_vars or _config(name, default=sentinel) is not sentinel
+    ]
+    if found:
+        raise ValueError(
+            f"{', '.join(found)} is set in .env, the environment or the command "
+            "line. These are committed constants in src/settings.py: remove them "
+            "there, and change them in settings.py, by commit, if needed."
+        )
+
+
+check_no_overrides()
 
 
 def create_directories():

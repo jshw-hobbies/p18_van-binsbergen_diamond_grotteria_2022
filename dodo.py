@@ -84,69 +84,12 @@ def task_config():
     }
 
 
-def task_pull():
-    """Pull data from external sources"""
-    yield {
-        "name": "fred",
-        "doc": "Pull data from FRED",
-        "actions": [
-            "python ./src/settings.py",
-            "python ./src/pull_fred.py",
-        ],
-        "targets": [DATA_DIR / "fred.parquet"],
-        "file_dep": ["./src/settings.py", "./src/pull_fred.py"],
-        "clean": [],
-    }
+## The P18 pull, clean and calc tasks go here (step 6.3: dodo.py skeleton).
 
 
-def task_summary_stats():
-    """Generate summary statistics tables"""
-    file_dep = ["./src/example_table.py"]
-    file_output = [
-        "example_table.tex",
-        "pandas_to_latex_simple_table1.tex",
-    ]
-    targets = [OUTPUT_DIR / file for file in file_output]
-
-    return {
-        "actions": [
-            "python ./src/example_table.py",
-            "python ./src/pandas_to_latex_demo.py",
-        ],
-        "targets": targets,
-        "file_dep": file_dep,
-        "clean": True,
-    }
-
-
-def task_example_plot():
-    """Example plots"""
-    file_dep = [Path("./src") / file for file in ["example_plot.py", "pull_fred.py"]]
-    file_output = ["example_plot.png"]
-    targets = [OUTPUT_DIR / file for file in file_output]
-
-    return {
-        "actions": [
-            "python ./src/example_plot.py",
-        ],
-        "targets": targets,
-        "file_dep": file_dep,
-        "clean": True,
-    }
-
-
-notebook_tasks = {
-    "01_example_notebook_interactive.ipynb.py": {
-        "path": "./src/01_example_notebook_interactive.ipynb.py",
-        "file_dep": [],
-        "targets": [],
-    },
-    "02_example_with_dependencies.ipynb.py": {
-        "path": "./src/02_example_with_dependencies.ipynb.py",
-        "file_dep": ["./src/pull_fred.py"],
-        "targets": [OUTPUT_DIR / "GDP_graph.png"],
-    },
-}
+## Notebooks to run, keyed by file name, each with "path", "file_dep" and
+## "targets". Empty until the P18 notebooks exist.
+notebook_tasks = {}
 
 
 # fmt: off
@@ -195,11 +138,9 @@ def task_compile_latex_docs():
         "./reports/my_common_header.sty",
         "./reports/report_simple_example.tex",
         "./reports/slides_simple_example.tex",
-        # Generated inputs. The reports typeset a placeholder for a missing one
-        # instead of failing, so list them here to have doit build them first.
-        OUTPUT_DIR / "example_plot.png",
-        OUTPUT_DIR / "example_table.tex",
-        OUTPUT_DIR / "pandas_to_latex_simple_table1.tex",
+        # Generated inputs go here (tables and charts in OUTPUT_DIR). The reports
+        # typeset a placeholder for a missing one instead of failing, so list
+        # them here to have doit build them first.
     ]
     targets = [
         "./reports/report_example.pdf",
