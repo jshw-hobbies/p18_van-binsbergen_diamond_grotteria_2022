@@ -52,3 +52,15 @@ def test_tenors_are_increasing_whole_months():
     tenors = settings.TENORS_M
     assert all(isinstance(m, int) and m > 0 for m in tenors)
     assert list(tenors) == sorted(set(tenors))
+
+
+def test_config_returns_local_default():
+    """An unset variable with a local default returns it (cast or not)."""
+    assert config("P18_TEST_UNSET_VAR", default="abc") == "abc"
+    assert config("P18_TEST_UNSET_VAR", default="3", cast=int) == 3
+
+
+def test_config_raises_without_default():
+    """An unset variable without a default raises a clear error."""
+    with pytest.raises(ValueError, match="is not defined"):
+        config("P18_TEST_UNSET_VAR")

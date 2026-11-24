@@ -276,18 +276,18 @@ def config(
             default_value = cast(default_value)
         return default_value
 
-    # 4. Use the default value provided in the local file. Error if not found
-    try:
-        return _config(var_name, default=default, cast=cast)
-    except Exception as e:
-        raise ValueError(
-            f"Configuration variable '{var_name}' is not defined. "
-            f"Please set it via:\n"
-            f"  1. Command line: --{var_name}=value\n"
-            f"  2. Environment variable: export {var_name}=value\n"
-            f"  3. .env file: {var_name}=value\n"
-            f"Original error: {e}"
-        ) from e
+    # 4. Use the default value provided in the local file. Error if not found.
+    # (Steps 1-3 already looked everywhere else. Calling decouple again here with
+    # cast=None crashed, which turned every `default=` into the error below.)
+    if default is not None:
+        return cast(default) if cast is not None else default
+    raise ValueError(
+        f"Configuration variable '{var_name}' is not defined. "
+        f"Please set it via:\n"
+        f"  1. Command line: --{var_name}=value\n"
+        f"  2. Environment variable: export {var_name}=value\n"
+        f"  3. .env file: {var_name}=value"
+    )
 
 
 def check_no_overrides(names=COMMITTED_CONSTANTS, cli_vars=cli_vars):
