@@ -37,6 +37,7 @@ DOIT_CONFIG = {
     "dep_file": "./.doit-db.sqlite",
     "default_tasks": [
         "config",
+        "pull_gsw",
         "run_notebooks",
         "compile_latex_docs",
         "build_chartbook_site",
