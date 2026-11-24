@@ -39,6 +39,7 @@ DOIT_CONFIG = {
         "config",
         "pull_gsw",
         "pull_fred",
+        "pull_zerocd",
         "run_notebooks",
         "compile_latex_docs",
         "build_chartbook_site",
