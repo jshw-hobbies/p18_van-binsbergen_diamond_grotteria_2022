@@ -13,12 +13,16 @@ from calc_benchmarks import (
     COLUMNS,
     bond_equivalent_to_cc,
     build_benchmarks,
+    chain_forwards,
     cmt_rates,
     discount_yield_to_cc,
     gsw_rates,
+    imm_date,
     interp_no_extrapolation,
     load_bloomberg,
+    month_segment,
     overnight_rates,
+    quarter_segment,
     simple_act360_to_cc,
     svensson_spot,
     tbill_rates,
@@ -185,3 +189,60 @@ def test_build_benchmarks_stacks_every_source(tmp_path):
     assert set(out["source"]) == {"gsw", "libor_om", "tbill", "cmt", "sofr", "effr"}
     assert not out.duplicated(["date", "source", "tenor_m"]).any()
     assert out["rate"].between(0, 0.05).all()  # decimals, not percent
+
+
+## Futures-implied rates
+
+
+def zq_price(r):
+    """The futures price whose daily-compounded average rate is the continuous r."""
+    return 100 - (np.exp(r / 365) - 1) * 360 * 100
+
+
+def test_imm_date_is_third_wednesday():
+    assert imm_date(2024, 3) == pd.Timestamp("2024-03-20")
+    assert imm_date(2023, 11) == pd.Timestamp("2023-11-15")  # Nov 1 is a Wednesday
+    assert imm_date(2024, 3).weekday() == 2
+
+
+def test_chain_flat_months_returns_r():
+    segs = [month_segment(f"2024-{m:02d}-01", zq_price(R)) for m in (1, 2, 3, 4)]
+    assert chain_forwards("2024-01-15", 91, segs) == pytest.approx(R, abs=1e-12)
+
+
+def test_chain_weights_by_days():
+    """Half the horizon at 2%, half at 4%: the term rate is 3%."""
+    segs = [
+        month_segment("2023-04-01", zq_price(0.02)),
+        month_segment("2023-05-01", zq_price(0.04)),
+    ]
+    # 2023-04-16 to 2023-05-16: 15 days in April, 15 in May
+    assert chain_forwards("2023-04-16", 30, segs) == pytest.approx(0.03, abs=1e-12)
+
+
+def test_chain_gap_is_nan():
+    segs = [month_segment("2024-01-01", zq_price(R))]  # no February
+    assert np.isnan(chain_forwards("2024-01-15", 30, segs))
+
+
+def test_chain_rejects_overlaps():
+    seg = month_segment("2024-01-01", zq_price(R))
+    with pytest.raises(ValueError, match="overlap"):
+        chain_forwards("2024-01-01", 31, [seg, seg])
+
+
+def test_quarter_segment_round_trip():
+    start, end, _ = quarter_segment(2024, 3, 95.0)
+    assert (start, end) == (pd.Timestamp("2024-03-20"), pd.Timestamp("2024-06-19"))
+    n = (end - start).days  # 91
+    price = 100 - (np.exp(R * n / 365) - 1) * 360 / n * 100
+    assert quarter_segment(2024, 3, price)[2] == pytest.approx(R, abs=1e-12)
+
+
+def test_sofr_chain_sr1_stub_then_sr3():
+    """SR1 months up to the first IMM date, then an SR3 quarter, all at r."""
+    stub = month_segment("2024-02-01", zq_price(R))
+    march = (pd.Timestamp("2024-03-01"), imm_date(2024, 3), R)  # SR1 until IMM
+    sr3 = quarter_segment(2024, 3, 100 - (np.exp(R * 91 / 365) - 1) * 360 / 91 * 100)
+    rate = chain_forwards("2024-02-10", 91, [stub, march, sr3])
+    assert rate == pytest.approx(R, abs=1e-12)

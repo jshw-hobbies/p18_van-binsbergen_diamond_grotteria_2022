@@ -14,6 +14,21 @@ build = "doit"
 
 [dataframes]
 
+[dataframes.benchmark_rates]
+name = "Benchmark rates"
+description = "Treasury, LIBOR-implied, T-bill, CMT, SOFR and EFFR rates on the box-rate tenors"
+sources = ["Federal Reserve (GSW)", "FRED", "OptionMetrics zerocd (WRDS)", "Bloomberg (optional)"]
+pull_method = "src/pull_gsw.py, src/pull_fred.py, src/pull_zerocd.py; built by src/calc_benchmarks.py"
+tags = ["Rates", "Treasury", "LIBOR", "SOFR", "Benchmarks"]
+date_col = "date"
+path = "./_data/benchmark_rates.parquet"
+docs = """
+Long format, one row per date x source x tenor_m, with column `rate`: a decimal,
+continuously compounded, on ACT/365. `tenor_m` is in months (0 for overnight rates).
+Sources: `gsw`, `libor_om`, `tbill`, `cmt`, `sofr`, `effr`, and `ois_bbg` and `gc_repo`
+when the Bloomberg exports are present. The conversions are in the
+`src/calc_benchmarks.py` docstring.
+"""
 
 [charts]
 

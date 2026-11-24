@@ -64,24 +64,42 @@ Optional, gitignored, in ``DATA_DIR/manual/``:
   ``date, tenor_m, rate``: ``rate`` in percent, as Bloomberg quotes it (simple,
   ACT/360). Adjust ``load_bloomberg`` if the lab's export looks different.
 
-Futures-implied rates (not built yet)
--------------------------------------
-These wait for ``pull_databento`` (domain C) to fix the columns of
+Futures-implied rates
+---------------------
+The formulas are built and tested (``chain_forwards`` and its helpers). Wiring
+them to data waits for ``pull_databento`` (domain C) to fix the columns of
 ``futures_daily.parquet``; ``FUTURES_DAILY`` joins this task's ``file_dep``
-then. Futures are not swaps: they settle on an average or compounded rate, not
-a term rate, and carry a small convexity bias. Say so wherever they are used.
+then, and the sources ``zq_implied``, ``sofr_fut_implied`` and ``ge_implied``
+join the output.
 
-- ``zq_implied``: fed funds future for month k, price ``P_k``, implies the
-  month's average EFFR ``f_k = (100 - P_k) / 100`` (simple, ACT/360). A term
-  rate over months 1..K (the first one partial, from the quote date):
-  ``r = (365 / D) ln prod_k (1 + f_k n_k / 360)``, ``n_k`` the days of month k
-  inside the horizon and ``D = sum n_k``.
-- ``sofr_fut_implied``: a 3-month SOFR future (SR3) implies the compounded SOFR
-  over its IMM reference quarter, ``R = (100 - P) / 100``, simple ACT/360 over
-  that quarter's days. Chain quarters as for ZQ, using SR1 for the stub
-  before the first quarter.
-- ``ge_implied``: a Eurodollar future implies the 3-month LIBOR forward from its
-  IMM date; chain as for SR3. Check against ``libor_om``.
+Every contract implies a continuously compounded forward rate over a span of
+days:
+
+- **averaging contracts**, ``ZQ`` (fed funds) and ``SR1`` (1-month SOFR): the
+  price ``P`` of the contract for a calendar month implies the month's average
+  overnight rate ``f = 100 - P`` (percent, simple, ACT/360). Compounded daily,
+  that is the forward ``365 ln(1 + f / 360)`` over the month
+  (``month_segment``);
+- **period contracts**, ``SR3`` (3-month SOFR, compounded over its IMM reference
+  quarter) and ``GE`` (Eurodollar, 3-month LIBOR from its IMM date): ``R = 100 -
+  P`` is a simple ACT/360 rate over the quarter's ``N`` days, so the forward is
+  ``(365 / N) ln(1 + R N / 360)`` (``quarter_segment``). The quarter runs from
+  the third Wednesday of the contract month (``imm_date``) to the third
+  Wednesday three months later.
+
+The term rate from the quote date ``q`` over ``H`` days is the day-weighted
+average of the forwards covering ``[q, q + H)`` (``chain_forwards``), which is
+NaN if the segments leave a gap: no extrapolation. A 3-month SOFR rate chains
+SR1 months up to the first SR3 quarter, then SR3 quarters.
+
+Approximations, to state wherever these rates are used:
+
+- futures are not swaps: they carry a convexity bias (small at these
+  horizons), which is ignored;
+- in the current month, the contract's average includes days already past;
+  the formula applies the month's average to the remaining days too;
+- ``GE`` implies LIBOR, which has credit risk: compare it with ``libor_om``,
+  not with the risk-free rates.
 
 Reuse: the course's ``fed_yield_curve`` repo, ``src/gsw_pricing.py``
 (``svensson_spot``, here taking the Fed's columns directly).
@@ -248,6 +266,61 @@ def load_bloomberg(source, manual_dir=MANUAL_DIR):
     out["rate"] = simple_act360_to_cc(raw["rate"], tenor_days(out["tenor_m"]))
     out["source"] = source
     return out.dropna(subset=["rate"])[COLUMNS]
+
+
+## Futures-implied rates: formulas only, until futures_daily exists.
+
+
+def imm_date(year, month):
+    """The third Wednesday of ``month``: where SR3 and GE reference quarters start."""
+    first = pd.Timestamp(year=year, month=month, day=1)
+    first_wednesday = first + pd.Timedelta(days=(2 - first.weekday()) % 7)
+    return first_wednesday + pd.Timedelta(weeks=2)
+
+
+def month_segment(month_start, price):
+    """Forward segment for an averaging contract (ZQ, SR1) on one calendar month.
+
+    Returns ``(start, end, fwd_cc)``: the month as ``[start, end)`` and the
+    continuous forward ``365 ln(1 + f / 360)``, ``f = 100 - price`` in percent.
+    """
+    start = pd.Timestamp(month_start).replace(day=1)
+    end = start + pd.offsets.MonthBegin(1)
+    return start, end, float(simple_act360_to_cc(100 - price, 1))
+
+
+def quarter_segment(year, month, price):
+    """Forward segment for a period contract (SR3, GE) with contract month ``month``.
+
+    Returns ``(start, end, fwd_cc)``: the IMM quarter ``[imm(m), imm(m + 3))``
+    and the continuous forward ``(365 / N) ln(1 + R N / 360)``, ``R = 100 -
+    price`` in percent and ``N`` the quarter's days.
+    """
+    start = imm_date(year, month)
+    later = pd.Timestamp(year=year, month=month, day=1) + pd.DateOffset(months=3)
+    end = imm_date(later.year, later.month)
+    n_days = (end - start).days
+    return start, end, float(simple_act360_to_cc(100 - price, n_days))
+
+
+def chain_forwards(quote_date, horizon_days, segments):
+    """Term rate over ``[quote_date, quote_date + horizon_days)`` from forward segments.
+
+    ``segments`` is a list of ``(start, end, fwd_cc)`` that must not overlap.
+    The result is the day-weighted average of the forwards, a continuous rate
+    on ACT/365, or NaN if the segments do not cover every day of the horizon.
+    """
+    q = pd.Timestamp(quote_date)
+    h_end = q + pd.Timedelta(days=horizon_days)
+    covered, weighted = 0, 0.0
+    for start, end, fwd in sorted(segments, key=lambda seg: seg[0]):
+        days = (min(end, h_end) - max(start, q)).days
+        if days > 0:
+            covered += days
+            weighted += days * fwd
+    if covered > horizon_days:
+        raise ValueError("Forward segments overlap")
+    return weighted / horizon_days if covered == horizon_days else np.nan
 
 
 def build_benchmarks(gsw, fred, zerocd, manual_dir=MANUAL_DIR, tenors=TENORS_M):
