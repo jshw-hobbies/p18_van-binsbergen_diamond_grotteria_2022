@@ -38,6 +38,7 @@ DOIT_CONFIG = {
     "default_tasks": [
         "config",
         "pull_gsw",
+        "pull_fred",
         "run_notebooks",
         "compile_latex_docs",
         "build_chartbook_site",
