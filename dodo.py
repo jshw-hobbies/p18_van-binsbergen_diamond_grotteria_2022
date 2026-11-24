@@ -40,6 +40,7 @@ DOIT_CONFIG = {
         "pull_gsw",
         "pull_fred",
         "pull_zerocd",
+        "calc_benchmarks",
         "run_notebooks",
         "compile_latex_docs",
         "build_chartbook_site",
@@ -256,7 +257,9 @@ def task_calc_benchmarks():
     """Benchmark rates on the box-rate tenors, in common units"""
     return {
         "actions": ["python ./src/calc_benchmarks.py"],
-        "file_dep": ["./src/calc_benchmarks.py", GSW, FRED, ZEROCD, FUTURES_DAILY],
+        ## FUTURES_DAILY joins file_dep once pull_databento fixes its columns and
+        ## the futures-implied rates are built (see the calc_benchmarks docstring).
+        "file_dep": ["./src/calc_benchmarks.py", GSW, FRED, ZEROCD],
         "targets": [BENCHMARK_RATES],
         "uptodate": [config_changed({"TENORS_M": TENORS_M})],
         "clean": True,
